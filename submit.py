@@ -234,7 +234,7 @@ def login(login_url, username, password=None, token=None):
 def login_from_config(cfg):
     """Log in to Kattis using the access information in a kattisrc file
 
-    Returns a requests.Response with cookies needed to be able to submit
+    Returns a requests.Response with cookies needed to be able to submit and the username
     """
     username = cfg.get('user', 'username')
     password = token = None
@@ -254,7 +254,7 @@ KATTIS password).
 Please download a new .kattisrc file''')
 
     loginurl = get_url(cfg, 'loginurl', 'login')
-    return login(loginurl, username, password, token)
+    return login(loginurl, username, password, token), username
 
 
 def submit(submit_url, cookies, problem, language, files, mainclass='', tag='', assignment=None, contest=None):
@@ -289,7 +289,8 @@ def submit(submit_url, cookies, problem, language, files, mainclass='', tag='', 
     return requests.post(submit_url, data=data, files=sub_files, cookies=cookies, headers=_HEADERS)
 
 
-def confirm_or_die(problem, language, files, mainclass, tag):
+def confirm_or_die(username, problem, language, files, mainclass, tag):
+    print('Username:', username)
     print('Problem:', problem)
     print('Language:', language)
     print('Files:', ', '.join(files))
@@ -327,7 +328,7 @@ def color(s, c):
 
 def show_judgement(submission_url, cfg):
     print()
-    login_reply = login_from_config(cfg)
+    login_reply, username = login_from_config(cfg)
     while True:
         status = get_submission_status(submission_url, login_reply.cookies)
         status_id = status['status_id']
@@ -447,7 +448,7 @@ extension "{ext}"''')
     files = sorted(list(set(args.files)))
 
     try:
-        login_reply = login_from_config(cfg)
+        login_reply, username = login_from_config(cfg)
     except ConfigError as exc:
         print(exc)
         sys.exit(1)
@@ -468,7 +469,7 @@ extension "{ext}"''')
     submit_url = get_url(cfg, 'submissionurl', 'submit')
 
     if not args.force:
-        confirm_or_die(problem, language, files, mainclass, tag)
+        confirm_or_die(username, problem, language, files, mainclass, tag)
 
     try:
         result = submit(submit_url,
