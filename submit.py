@@ -8,6 +8,7 @@ import sys
 import time
 
 from lxml.html import fragment_fromstring
+import requests.cookies
 
 _DEFAULT_CONFIG = '/usr/local/etc/kattisrc'
 _LANGUAGE_GUESS = {
@@ -73,20 +74,20 @@ _LANGUAGE_GUESS = {
     '.ex': 'Elixir',
 }
 
-_GUESS_MAINCLASS = { 'Elixir', 'Erlang', 'Java', 'Kotlin', 'Modula-2', 'Scala' }
+_GUESS_MAINCLASS = {'Elixir', 'Erlang', 'Java', 'Kotlin', 'Modula-2', 'Scala'}
 _GUESS_MAINFILE = {
     'Ada', 'Algol 68', 'APL', 'Bash', 'Crystal', 'Dart', 'Forth', 'Gerbil', 'JavaScript (Node.js)',
     'JavaScript (SpiderMonkey)', 'Julia', 'Common Lisp', 'Lua', 'Nim', 'Octave', 'Pascal', 'Perl', 'PHP',
-	'Python 2', 'Python 3', 'Racket', 'Ruby', 'Rust', 'Simula', 'Smalltalk', 'SNOBOL', 'TypeScript', 'Zig',
+    'Python 2', 'Python 3', 'Racket', 'Ruby', 'Rust', 'Simula', 'Smalltalk', 'SNOBOL', 'TypeScript', 'Zig',
 }
 
-_HEADERS = { 'User-Agent': 'kattis-cli-submit' }
+_HEADERS = {'User-Agent': 'kattis-cli-submit'}
 
 _RUNNING_STATUS = 5
 _COMPILE_ERROR_STATUS = 8
 _ACCEPTED_STATUS = 16
 _STATUS_MAP = {
-    0: 'New', # <invalid value>
+    0: 'New',  # <invalid value>
     1: 'New',
     2: 'Waiting for compile',
     3: 'Compiling',
@@ -110,7 +111,7 @@ class ConfigError(Exception):
     pass
 
 
-def get_url(cfg, option, default):
+def get_url(cfg: configparser.ConfigParser, option: str, default: str):
     if cfg.has_option('kattis', option):
         return cfg.get('kattis', option)
     else:
@@ -151,7 +152,7 @@ submissionsurl: https://<kattis>/submissions''')
     return cfg
 
 
-def is_python2(files):
+def is_python2(files: list[str]):
     python2 = re.compile(r'^\s*\bprint\b *[^ \(\),\]]|\braw_input\b')
     for filename in files:
         try:
@@ -171,7 +172,7 @@ def is_python2(files):
     return False
 
 
-def guess_language(ext, files):
+def guess_language(ext: str, files: list[str]):
     if ext == ".C":
         return "C++"
     ext = ext.lower()
@@ -188,7 +189,7 @@ def guess_language(ext, files):
     return _LANGUAGE_GUESS.get(ext, None)
 
 
-def guess_mainfile(language, files):
+def guess_mainfile(language: str, files: list[str]):
     for filename in files:
         if os.path.splitext(os.path.basename(filename))[0] in ['main', 'Main']:
             return filename
@@ -207,7 +208,7 @@ def guess_mainfile(language, files):
     return files[0]
 
 
-def guess_mainclass(language, files):
+def guess_mainclass(language: str | None, files: list[str]):
     if language in _GUESS_MAINFILE and len(files) > 1:
         return os.path.basename(guess_mainfile(language, files))
     if language in _GUESS_MAINCLASS:
@@ -219,7 +220,7 @@ def guess_mainclass(language, files):
     return None
 
 
-def login(login_url, username, password=None, token=None):
+def login(login_url: str, username: str, password: str | None = None, token: str | None = None):
     """Log in to Kattis.
 
     At least one of password or token needs to be provided.
@@ -235,7 +236,7 @@ def login(login_url, username, password=None, token=None):
     return requests.post(login_url, data=login_args, headers=_HEADERS)
 
 
-def login_from_config(cfg):
+def login_from_config(cfg: configparser.ConfigParser):
     """Log in to Kattis using the access information in a kattisrc file
 
     Returns a requests.Response with cookies needed to be able to submit
@@ -261,7 +262,15 @@ Please download a new .kattisrc file''')
     return login(loginurl, username, password, token)
 
 
-def submit(submit_url, cookies, problem, language, files, mainclass='', tag='', assignment=None, contest=None):
+def submit(submit_url: str,
+           cookies: requests.cookies.RequestsCookieJar,
+           problem: str,
+           language: str,
+           files: list[str],
+           mainclass: str | None = '',
+           tag: str = '',
+           assignment: str | None = None,
+           contest: str | None = None):
     """Make a submission.
 
     The url_opener argument is an OpenerDirector object to use (as
@@ -270,19 +279,19 @@ def submit(submit_url, cookies, problem, language, files, mainclass='', tag='', 
     Returns the requests.Result from the submission
     """
 
-    data = {'submit': 'true',
-            'submit_ctr': 2,
-            'language': language,
-            'mainclass': mainclass,
-            'problem': problem,
-            'tag': tag,
-            'script': 'true'}
+    data: dict[str, str | int | None] = {'submit': 'true',
+                                         'submit_ctr': 2,
+                                         'language': language,
+                                         'mainclass': mainclass,
+                                         'problem': problem,
+                                         'tag': tag,
+                                         'script': 'true'}
 
     if assignment is not None:
         data['assignment'] = assignment
     if contest is not None:
         data['contest'] = contest
-    sub_files = []
+    sub_files: list[tuple[str, tuple[str, bytes, str]]] = []
     for f in files:
         with open(f, 'rb') as sub_file:
             sub_files.append(('sub_file[]',
@@ -293,7 +302,7 @@ def submit(submit_url, cookies, problem, language, files, mainclass='', tag='', 
     return requests.post(submit_url, data=data, files=sub_files, cookies=cookies, headers=_HEADERS)
 
 
-def confirm_or_die(problem, language, files, mainclass, tag):
+def confirm_or_die(problem: str, language: str, files: list[str], mainclass: str | None, tag: str | None):
     print('Problem:', problem)
     print('Language:', language)
     print('Files:', ', '.join(files))
@@ -310,7 +319,7 @@ def confirm_or_die(problem, language, files, mainclass, tag):
         sys.exit(1)
 
 
-def get_submission_url(submit_response, cfg):
+def get_submission_url(submit_response: str, cfg: configparser.ConfigParser):
     m = re.search(r'Submission ID: (\d+)', submit_response)
     if m:
         submissions_url = get_url(cfg, 'submissionsurl', 'submissions')
@@ -318,19 +327,22 @@ def get_submission_url(submit_response, cfg):
         return f'{submissions_url}/{submission_id}'
 
 
-def get_submission_status(submission_url, cookies):
-    reply = requests.get(submission_url + '?json', cookies=cookies, headers=_HEADERS)
+def get_submission_status(submission_url: str, cookies: requests.cookies.RequestsCookieJar):
+    reply = requests.get(submission_url + '?json',
+                         cookies=cookies, headers=_HEADERS)
     return reply.json()
 
 
 _RED_COLOR = 31
 _GREEN_COLOR = 32
 _YELLOW_COLOR = 33
-def color(s, c):
+
+
+def color(s: str, c: int):
     return f'\x1b[{c}m{s}\x1b[0m'
 
 
-def show_judgement(submission_url, cfg):
+def show_judgement(submission_url: str, cfg: configparser.ConfigParser):
     login_reply = login_from_config(cfg)
     while True:
         status = get_submission_status(submission_url, login_reply.cookies)
@@ -348,8 +360,12 @@ def show_judgement(submission_url, cfg):
         if status_id == _COMPILE_ERROR_STATUS:
             print(f'\r{color(status_text, _RED_COLOR)}', end='')
             try:
-                root = fragment_fromstring(status['feedback_html'], create_parent=True)
-                error = root.find('.//pre').text
+                root = fragment_fromstring(
+                    status['feedback_html'], create_parent=True)
+                elem = root.find('.//pre')
+                if elem is None:
+                    raise Exception()
+                error = elem.text
                 print(color(':', _RED_COLOR))
                 print(error, end='')
             except:
@@ -364,14 +380,19 @@ def show_judgement(submission_url, cfg):
             else:
                 progress = ''
                 for i in re.findall(r'<i class="([\w\- ]*)" title', status['row_html']):
-                    if 'is-empty' in i: break
-                    if 'accepted' in i: progress += color('.', _GREEN_COLOR)
-                    if 'rejected' in i: progress += color('x', _RED_COLOR)
+                    if 'is-empty' in i:
+                        break
+                    if 'accepted' in i:
+                        progress += color('.', _GREEN_COLOR)
+                    if 'rejected' in i:
+                        progress += color('x', _RED_COLOR)
 
                 # NB: We need to do the following math since len(color('.', _SOME_COLOR)) == 10
                 if status_id == _RUNNING_STATUS:
-                    progress = progress[:10*(testcases_done - 1)] + color('?', _YELLOW_COLOR)
-                print(f'[{progress}{" " * (9*testcases_done + testcases_total - len(progress))}]  {testcases_done} / {testcases_total}', end='')
+                    progress = progress[:10*(testcases_done - 1)] + \
+                        color('?', _YELLOW_COLOR)
+                print(
+                    f'[{progress}{" " * (9*testcases_done + testcases_total - len(progress))}]  {testcases_done} / {testcases_total}', end='')
 
         sys.stdout.flush()
 
@@ -380,13 +401,17 @@ def show_judgement(submission_url, cfg):
             print()
             success = status_id == _ACCEPTED_STATUS
             try:
-                root = fragment_fromstring(status['row_html'], create_parent=True)
-                cpu_time = root.xpath('.//*[@data-type="cpu"]')[0].text_content()
+                root = fragment_fromstring(
+                    status['row_html'], create_parent=True)
+                cpu_time = root.xpath(
+                    './/*[@data-type="cpu"]')[0].text_content()
                 try:
-                    score = re.findall(r'\(([\d\.]+)\)', root.xpath('.//*[@data-type="status"]')[0].text_content())[0]
+                    score = re.findall(
+                        r'\(([\d\.]+)\)', root.xpath('.//*[@data-type="status"]')[0].text_content())[0]
                 except:
                     score = ''
-                status_text += " (" + cpu_time + ', ' + score + ")" if score else " (" + cpu_time + ")"
+                status_text += " (" + cpu_time + ', ' + score + \
+                    ")" if score else " (" + cpu_time + ")"
             except:
                 pass
             if status_id != _COMPILE_ERROR_STATUS:
@@ -397,13 +422,14 @@ def show_judgement(submission_url, cfg):
 
 
 def main():
-    parser = argparse.ArgumentParser(prog='kattis', description='Submit a solution to Kattis')
+    parser = argparse.ArgumentParser(
+        prog='kattis', description='Submit a solution to Kattis')
     group = parser.add_mutually_exclusive_group()
     group.add_argument('-a', '--assignment',
-                        help='''Short name of assignment you want to submit to
+                       help='''Short name of assignment you want to submit to
 Overrides default guess (server guesses based on assignments you are in)''')
     group.add_argument('-c', '--contest',
-                        help='''Short name of contest you want to submit to
+                       help='''Short name of contest you want to submit to
 Overrides default guess (server guesses based on contests you are in)''')
     parser.add_argument('-p', '--problem',
                         help=''''Which problem to submit to.
@@ -422,7 +448,7 @@ Overrides default guess (based on suffix of first filename)''')
     parser.add_argument('files', nargs='+')
 
     args = parser.parse_args()
-    files = args.files
+    files: list[str] = args.files
 
     try:
         cfg = get_config()
@@ -438,10 +464,10 @@ Overrides default guess (based on suffix of first filename)''')
     problem = problem.lower()
 
     if args.problem:
-        problem = args.problem
+        problem: str = args.problem
 
     if args.mainclass is not None:
-        mainclass = args.mainclass
+        mainclass: str | None = args.mainclass
 
     if args.language:
         language = args.language
