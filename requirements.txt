@@ -2,4 +2,4 @@ lxml
 requests
 
 # For improved type hinting (only relevant if you are modifying the cli itself):
-# types-lxml
+types-lxml
